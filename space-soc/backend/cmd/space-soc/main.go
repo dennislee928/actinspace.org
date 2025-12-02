@@ -246,20 +246,7 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{"events": events, "count": len(events)})
 	})
 
-	// 查詢事件（依場景）
-	r.GET("/api/v1/events/scenario/:scenarioId", func(c *gin.Context) {
-		scenarioID := c.Param("scenarioId")
-		var events []Event
-
-		if err := db.Where("scenario_id = ?", scenarioID).Order("created_at DESC").Find(&events).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "無法查詢事件"})
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H{"events": events, "count": len(events), "scenarioId": scenarioID})
-	})
-
-	// Incident API
+	// Incident API（必須在 events/scenario 之前註冊，避免路由衝突）
 	// 創建 incident
 	r.POST("/api/v1/incidents", func(c *gin.Context) {
 		var req struct {
@@ -374,6 +361,19 @@ func main() {
 		}
 
 		c.JSON(http.StatusOK, incident)
+	})
+
+	// 查詢事件（依場景）- 放在 incidents 路由之後，避免路由衝突
+	r.GET("/api/v1/events/scenario/:scenarioId", func(c *gin.Context) {
+		scenarioID := c.Param("scenarioId")
+		var events []Event
+
+		if err := db.Where("scenario_id = ?", scenarioID).Order("created_at DESC").Find(&events).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "無法查詢事件"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"events": events, "count": len(events), "scenarioId": scenarioID})
 	})
 
 	port := os.Getenv("PORT")
