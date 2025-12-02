@@ -9,13 +9,15 @@ RUN go mod download
 # 複製所有原始碼
 COPY . .
 
-RUN go build -o satellite-sim ./satellite-sim/cmd/satellite-sim
+RUN go build -o /satellite-sim ./satellite-sim/cmd/satellite-sim
 
 FROM alpine:3.20
 
 WORKDIR /app
 
-COPY --from=builder /app/satellite-sim /app/satellite-sim
+# 複製可執行檔並設置執行權限
+COPY --from=builder /satellite-sim /app/satellite-sim
+RUN chmod +x /app/satellite-sim
 
 ENV PORT=8082
 
