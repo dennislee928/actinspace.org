@@ -29,9 +29,10 @@ RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
 # Copy standalone output
-COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+# Next.js standalone 模式已包含所有需要的資源，public 目錄不是必需的
+# 如果需要 public 目錄，可以在 builder stage 中創建
 
 USER nextjs
 
