@@ -54,9 +54,32 @@ open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specifie
 
 #### 端口已被佔用
 
-如果某個端口已被使用，可以：
-1. 修改 `docker-compose.yaml` 中的端口映射
-2. 或停止佔用該端口的其他服務
+如果看到錯誤訊息：
+```
+failed to bind host port for 0.0.0.0:8080: address already in use
+```
+
+**解決方法**：
+
+1. **停止所有相關容器**：
+   ```bash
+   docker compose -f infra/docker-compose.yaml down
+   ```
+
+2. **檢查並停止佔用端口的程序**（Windows）：
+   ```bash
+   netstat -ano | findstr :8080
+   # 記下 PID，然後終止該程序
+   taskkill /PID <PID> /F
+   ```
+
+3. **或者修改端口映射**：
+   編輯 `infra/docker-compose.yaml`，將端口改為其他可用端口（例如 8080 → 18080）
+
+4. **重新啟動**：
+   ```bash
+   docker compose -f infra/docker-compose.yaml up -d
+   ```
 
 #### 建置失敗
 
