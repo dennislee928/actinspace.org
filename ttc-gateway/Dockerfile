@@ -19,4 +19,3 @@ COPY --from=builder /ttc-gateway .
 
 EXPOSE 8081
 CMD ["./ttc-gateway"]
-

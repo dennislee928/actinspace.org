@@ -20,3 +20,4 @@ COPY --from=builder /space-soc-backend .
 EXPOSE 8080
 CMD ["./space-soc-backend"]
 
+

@@ -19,3 +19,4 @@ COPY --from=builder /ground-station-sim .
 
 CMD ["./ground-station-sim"]
 
+
