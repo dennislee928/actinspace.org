@@ -1,5 +1,6 @@
 stages:
   - test
+  - security
   - build
 
 variables:
@@ -11,10 +12,41 @@ go-test:
   script:
     - go test ./...
 
-go-build:
-  stage: build
-  image: golang:${GO_VERSION}
+# 簡單 SAST 範例（實際 CI 需提供適當的 Semgrep 設定）
+sast-semgrep:
+  stage: security
+  image: returntocorp/semgrep
   script:
-    - go build ./...
+    - semgrep ci --config auto
+
+# 簡單 SCA / 映像掃描範例（實際 CI 需啟用 docker-in-docker）
+sca-trivy:
+  stage: security
+  image: aquasec/trivy:latest
+  script:
+    - trivy fs --exit-code 0 --security-checks vuln,config --format table .
+
+# SBOM 產生（CycloneDX / Syft 範例）
+sbom-syft:
+  stage: build
+  image: anchore/syft:latest
+  script:
+    - syft dir:. -o cyclonedx-json > supply-chain/sbom/root-sbom.json
+  artifacts:
+    paths:
+      - supply-chain/sbom/
+
+# 建置 satellite-sim 映像檔（需在 CI 上啟用 docker）
+satellite-sim-image:
+  stage: build
+  image: docker:24.0.5
+  services:
+    - docker:24.0.5-dind
+  variables:
+    DOCKER_HOST: tcp://docker:2375/
+    DOCKER_TLS_CERTDIR: ""
+  script:
+    - docker build -t satellite-sim:latest ./satellite-sim
+
 
 
