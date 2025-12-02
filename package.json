@@ -1,0 +1,11 @@
+{
+  "name": "space-cyber-resilience-platform",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "lint": "echo \"No root lint yet\"",
+    "build": "echo \"No root build yet\""
+  }
+}
+
+
