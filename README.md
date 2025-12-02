@@ -163,14 +163,12 @@ These are documented in more detail in `docs/USE_CASES.md` (to be implemented).
 - SBOM generation tools (CycloneDX / Syft or equivalent)
 - Simple in-repo signing / verification (e.g. based on Go crypto; pluggable to cosign / in-toto patterns later)
 
-## 6. Quickstart (planned)
-
-Status: this is a design README. Concrete commands will be updated once the initial implementation lands.
+## 6. Quickstart
 
 **Prerequisites**
 
 - Docker & Docker Compose
-- Go ≥ 1.22
+- Go ≥ 1.23
 - Node.js ≥ 20
 
 **Clone repository**
@@ -183,29 +181,99 @@ cd space-cyber-resilience-platform
 **Start the lab environment**
 
 ```bash
+# 啟動所有服務
 docker compose -f infra/docker-compose.yaml up -d
+
+# 查看服務狀態
+docker compose -f infra/docker-compose.yaml ps
+
+# 查看日誌
+docker compose -f infra/docker-compose.yaml logs -f
 ```
 
-**Open Space-SOC dashboard**
+**Access the dashboards**
 
-- Navigate to http://localhost:3000 for the web UI
-- Default demo credentials will be documented once implemented
+- **Space-SOC Dashboard**: http://localhost:3001
+  - 事件列表和時間軸
+  - 安全事件 (Incidents)
+  - 軟體姿態面板: http://localhost:3001/posture
 
-**Trigger sample scenarios**
+**Test the system**
 
-- Use ground-station-sim CLI or UI to send legitimate commands
-- Use attacker CLI to replay sample attack flows from threat-library/
+1. **Send commands via ground-station-sim**:
+   ```bash
+   # Build the CLI
+   go build -o ground-station-sim ./ground-station-sim/cmd/ground-station-sim
+   
+   # Send a command (will be denied - operator role)
+   ./ground-station-sim -gateway http://localhost:8081 -cmd deorbit -token operator-token
+   
+   # Send with admin role (will be allowed)
+   ./ground-station-sim -gateway http://localhost:8081 -cmd deorbit -token admin-token
+   ```
 
-## 7. Roadmap
+2. **Replay threat scenarios**:
+   ```bash
+   # Build replay tool
+   go build -o replay-scenario ./threat-library/scripts/replay-scenario.go
+   
+   # Replay unauthorized command scenario
+   ./replay-scenario -scenario threat-library/scenarios/unauthorized-dangerous-command.yaml
+   ```
 
-The development roadmap and milestones are tracked in [`plan.md`](./plan.md). In short:
+3. **Test OTA workflow**:
+   ```bash
+   # Run Phase 3 test script
+   pwsh scripts/test-phase3.ps1
+   ```
 
-- **Phase 1** – Minimal end-to-end flow (DevSecOps → TT&C gateway → SOC)
-- **Phase 2** – Threat library, attack simulation and richer analytics
-- **Phase 3** – Hardening, documentation and packaging for:
-  - Innovation contests (e.g. ActInSpace ADS #6)
-  - Academic publication / MSc project work
-  - Potential spin-off as a niche product
+**View results in Space-SOC**
+
+- Navigate to http://localhost:3001
+- View events, anomalies, and policy decisions
+- Check Incidents tab for security events
+- View Software Posture for component versions and vulnerabilities
+
+## 7. Implementation Status
+
+The development roadmap and milestones are tracked in [`plan.md`](.cursor/plan/plan.md).
+
+### ✅ Phase 0 - Project Bootstrap (Completed)
+- Repository structure and documentation
+- Basic CI/CD configuration
+- Development tooling setup
+
+### ✅ Phase 1 - Minimal End-to-End MVP (Completed)
+- Satellite-sim service with command interface
+- TT&C Gateway with token-based auth and basic policy
+- Space-SOC backend (event ingestion, storage)
+- Space-SOC frontend (event timeline)
+- Docker Compose orchestration
+
+### ✅ Phase 2 - Threat Modelling & Zero-Trust (Completed)
+- Policy-as-code engine with 4 default rules
+- Rule-based anomaly detection (rate limit, time-of-day, burst, role activity)
+- 5 threat scenarios defined (YAML format)
+- Scenario replay CLI tool
+- Incidents API and management
+- Enhanced Space-SOC UI with severity and anomaly display
+
+### ✅ Phase 3 - Supply-Chain Resilience & OTA (Completed)
+- OTA Controller with approval workflow
+- OTA Client in satellite-sim (periodic update checks)
+- SBOM parser and policy checker
+- Software Posture tracking and dashboard
+- Mission phase-aware update control
+- Signature verification workflow
+
+### 🔄 Phase 4 - Contest/Academic Packaging (In Progress)
+- Documentation updates
+- Demo scripts and guides
+
+### 📋 Phase 5 - Extensions (Planned)
+- ML-based anomaly detection
+- More realistic simulation (latency, packet loss)
+- External SIEM/SOAR integration
 
 ## 8. Disclaimer
 

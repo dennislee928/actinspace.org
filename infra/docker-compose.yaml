@@ -38,6 +38,28 @@ services:
       retries: 3
       start_period: 30s
 
+  # OTA Controller
+  ota-controller:
+    build:
+      context: ..
+      dockerfile: supply-chain/ota-controller/Dockerfile
+    container_name: ota-controller
+    ports:
+      - "8084:8084"
+    environment:
+      - PORT=8084
+      - SPACE_SOC_URL=http://space-soc-backend:8080
+    volumes:
+      - ota-data:/root
+    depends_on:
+      - space-soc-backend
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:8084/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
   # Satellite Simulator
   satellite-sim:
     build:
@@ -48,6 +70,10 @@ services:
       - "8082:8082"
     environment:
       - PORT=8082
+      - OTA_CONTROLLER_URL=http://ota-controller:8084
+      - VERSION=v1.0.0
+    depends_on:
+      - ota-controller
     healthcheck:
       test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:8082/health || exit 1"]
       interval: 10s
@@ -79,4 +105,5 @@ services:
 
 volumes:
   space-soc-data:
+  ota-data:
 

@@ -29,8 +29,8 @@ type Event struct {
 	Severity     string    `gorm:"index" json:"severity,omitempty"` // "low", "medium", "high", "critical"
 	RuleID       string    `json:"ruleID,omitempty"`
 	AnomalyType  string    `json:"anomalyType,omitempty"`
-	ScenarioID   string    `gorm:"index" json:"scenarioID,omitempty"`   // 關聯的威脅場景
-	IncidentID   *uint     `gorm:"index" json:"incidentID,omitempty"`   // 關聯的 incident
+	ScenarioID   string    `gorm:"index" json:"scenarioID,omitempty"` // 關聯的威脅場景
+	IncidentID   *uint     `gorm:"index" json:"incidentID,omitempty"` // 關聯的 incident
 	Metadata     string    `gorm:"type:text" json:"metadata,omitempty"` // JSON string
 	CreatedAt    time.Time `gorm:"index" json:"createdAt"`
 }
@@ -46,6 +46,22 @@ type Incident struct {
 	Events      []Event   `gorm:"foreignKey:IncidentID" json:"events,omitempty"`
 	CreatedAt   time.Time `gorm:"index" json:"createdAt"`
 	UpdatedAt   time.Time `json:"updatedAt"`
+}
+
+// SoftwarePosture 定義組件的軟體姿態。
+type SoftwarePosture struct {
+	ID              uint      `gorm:"primaryKey" json:"id"`
+	Component       string    `gorm:"not null;uniqueIndex" json:"component"` // satellite-sim, ttc-gateway, etc.
+	CurrentVersion  string    `gorm:"not null" json:"currentVersion"`
+	LatestVersion   string    `json:"latestVersion,omitempty"`
+	ImageDigest     string    `json:"imageDigest,omitempty"`
+	SBOMURL         string    `json:"sbomUrl,omitempty"`
+	VulnCount       int       `json:"vulnCount"` // 已知漏洞數量
+	LastScanTime    time.Time `json:"lastScanTime,omitempty"`
+	LastUpdateTime  time.Time `json:"lastUpdateTime,omitempty"`
+	UpdateAvailable bool      `json:"updateAvailable"`
+	CreatedAt       time.Time `json:"createdAt"`
+	UpdatedAt       time.Time `json:"updatedAt"`
 }
 
 // IngestRequest 定義從外部組件接收的事件格式。
@@ -86,7 +102,7 @@ func initDB() {
 	}
 
 	// 自動遷移
-	if err := db.AutoMigrate(&Event{}, &Incident{}); err != nil {
+	if err := db.AutoMigrate(&Event{}, &Incident{}, &SoftwarePosture{}); err != nil {
 		log.Fatalf("資料庫遷移失敗: %v", err)
 	}
 
@@ -144,6 +160,32 @@ func createOrUpdateIncident(req IngestRequest, db *gorm.DB) *Incident {
 	}
 }
 
+// updateSoftwarePosture 更新組件的軟體姿態。
+func updateSoftwarePosture(component, version, imageDigest string, db *gorm.DB) {
+	var posture SoftwarePosture
+
+	err := db.Where("component = ?", component).First(&posture).Error
+	if err != nil {
+		// 創建新記錄
+		posture = SoftwarePosture{
+			Component:      component,
+			CurrentVersion: version,
+			ImageDigest:    imageDigest,
+			LastUpdateTime: time.Now().UTC(),
+			CreatedAt:      time.Now().UTC(),
+			UpdatedAt:      time.Now().UTC(),
+		}
+		db.Create(&posture)
+	} else {
+		// 更新現有記錄
+		posture.CurrentVersion = version
+		posture.ImageDigest = imageDigest
+		posture.LastUpdateTime = time.Now().UTC()
+		posture.UpdatedAt = time.Now().UTC()
+		db.Save(&posture)
+	}
+}
+
 func main() {
 	initDB()
 
@@ -152,7 +194,7 @@ func main() {
 	// CORS 設定（允許 frontend 存取）
 	r.Use(func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
-		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS")
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
@@ -202,6 +244,19 @@ func main() {
 			incident := createOrUpdateIncident(req, db)
 			if incident != nil {
 				event.IncidentID = &incident.ID
+			}
+		}
+
+		// 如果是 OTA 相關事件，更新軟體姿態
+		if req.EventType == "release_approved" || req.EventType == "update_applied" {
+			if component, ok := req.Metadata["component"].(string); ok {
+				if version, ok := req.Metadata["version"].(string); ok {
+					imageDigest := ""
+					if digest, ok := req.Metadata["imageDigest"].(string); ok {
+						imageDigest = digest
+					}
+					updateSoftwarePosture(component, version, imageDigest, db)
+				}
 			}
 		}
 
@@ -361,6 +416,86 @@ func main() {
 		}
 
 		c.JSON(http.StatusOK, incident)
+	})
+
+	// Software Posture API
+	// 查詢所有組件的軟體姿態
+	r.GET("/api/v1/posture", func(c *gin.Context) {
+		var postures []SoftwarePosture
+
+		if err := db.Order("component ASC").Find(&postures).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "無法查詢軟體姿態"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"postures": postures, "count": len(postures)})
+	})
+
+	// 查詢單一組件的軟體姿態
+	r.GET("/api/v1/posture/:component", func(c *gin.Context) {
+		component := c.Param("component")
+		var posture SoftwarePosture
+
+		if err := db.Where("component = ?", component).First(&posture).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "component not found"})
+			return
+		}
+
+		c.JSON(http.StatusOK, posture)
+	})
+
+	// 更新組件軟體姿態（由 OTA controller 或 CI 調用）
+	r.POST("/api/v1/posture", func(c *gin.Context) {
+		var req struct {
+			Component       string    `json:"component" binding:"required"`
+			CurrentVersion  string    `json:"currentVersion" binding:"required"`
+			ImageDigest     string    `json:"imageDigest,omitempty"`
+			SBOMURL         string    `json:"sbomUrl,omitempty"`
+			VulnCount       int       `json:"vulnCount"`
+			LastScanTime    time.Time `json:"lastScanTime,omitempty"`
+			UpdateAvailable bool      `json:"updateAvailable"`
+		}
+
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		var posture SoftwarePosture
+		err := db.Where("component = ?", req.Component).First(&posture).Error
+
+		now := time.Now().UTC()
+
+		if err != nil {
+			// 創建新記錄
+			posture = SoftwarePosture{
+				Component:       req.Component,
+				CurrentVersion:  req.CurrentVersion,
+				ImageDigest:     req.ImageDigest,
+				SBOMURL:         req.SBOMURL,
+				VulnCount:       req.VulnCount,
+				LastScanTime:    req.LastScanTime,
+				UpdateAvailable: req.UpdateAvailable,
+				CreatedAt:       now,
+				UpdatedAt:       now,
+			}
+			if err := db.Create(&posture).Error; err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "無法創建軟體姿態"})
+				return
+			}
+		} else {
+			// 更新現有記錄
+			posture.CurrentVersion = req.CurrentVersion
+			posture.ImageDigest = req.ImageDigest
+			posture.SBOMURL = req.SBOMURL
+			posture.VulnCount = req.VulnCount
+			posture.LastScanTime = req.LastScanTime
+			posture.UpdateAvailable = req.UpdateAvailable
+			posture.UpdatedAt = now
+			db.Save(&posture)
+		}
+
+		c.JSON(http.StatusOK, posture)
 	})
 
 	// 查詢事件（依場景）- 放在 incidents 路由之後，避免路由衝突

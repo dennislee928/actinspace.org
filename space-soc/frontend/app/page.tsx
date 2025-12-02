@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 
 interface Event {
   id: number
@@ -113,7 +114,15 @@ export default function Home() {
   return (
     <main className="min-h-screen p-8 bg-gray-50">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6 text-gray-900">Space-SOC Dashboard</h1>
+        <div className="mb-6 flex items-center justify-between">
+          <h1 className="text-3xl font-bold text-gray-900">Space-SOC Dashboard</h1>
+          <Link
+            href="/posture"
+            className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+          >
+            軟體姿態
+          </Link>
+        </div>
 
         {/* 標籤切換 */}
         <div className="mb-4 flex gap-2 border-b border-gray-200">

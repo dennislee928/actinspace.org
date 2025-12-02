@@ -1,0 +1,34 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.4",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2025-12-02T00:00:00Z",
+    "component": {
+      "type": "application",
+      "name": "satellite-sim",
+      "version": "v1.0.0"
+    }
+  },
+  "components": [
+    {
+      "type": "library",
+      "name": "github.com/gin-gonic/gin",
+      "version": "v1.10.0",
+      "purl": "pkg:golang/github.com/gin-gonic/gin@v1.10.0"
+    },
+    {
+      "type": "library",
+      "name": "gorm.io/gorm",
+      "version": "v1.31.1",
+      "purl": "pkg:golang/gorm.io/gorm@v1.31.1"
+    },
+    {
+      "type": "library",
+      "name": "gorm.io/driver/sqlite",
+      "version": "v1.6.0",
+      "purl": "pkg:golang/gorm.io/driver/sqlite@v1.6.0"
+    }
+  ]
+}
+

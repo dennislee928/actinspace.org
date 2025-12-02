@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"actinspace.org/satellite-sim/internal/ota"
 )
 
 // CommandRequest 定義從 TT&C gateway 接收到的指令格式。
@@ -24,6 +25,19 @@ type CommandResponse struct {
 
 func main() {
 	r := gin.Default()
+
+	// 啟動 OTA client（如果配置了 OTA controller URL）
+	otaControllerURL := os.Getenv("OTA_CONTROLLER_URL")
+	if otaControllerURL != "" {
+		version := os.Getenv("VERSION")
+		if version == "" {
+			version = "v1.0.0"
+		}
+
+		otaClient := ota.NewClient(otaControllerURL, "satellite-sim", version)
+		go otaClient.StartUpdateLoop(30 * time.Second) // 每 30 秒檢查一次
+		log.Printf("OTA client 已啟動，連接到: %s", otaControllerURL)
+	}
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
