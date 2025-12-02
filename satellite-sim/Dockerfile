@@ -2,7 +2,11 @@ FROM golang:1.22-alpine AS builder
 
 WORKDIR /app
 
-COPY go.mod ./
+# 複製 go.mod 和 go.sum（如果存在）
+COPY go.mod go.sum* ./
+RUN go mod download
+
+# 複製所有原始碼
 COPY . .
 
 RUN go build -o satellite-sim ./satellite-sim/cmd/satellite-sim
