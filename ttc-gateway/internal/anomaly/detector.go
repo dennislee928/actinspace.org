@@ -187,7 +187,7 @@ func (d *Detector) checkCommandBurst(command string, timestamp time.Time) *Anoma
 	windowStart := timestamp.Add(-d.config.BurstTimeWindow)
 	count := 0
 	
-	for cmd, times := range d.commandCounts {
+	for _, times := range d.commandCounts {
 		// 檢查所有指令類型（不僅是當前指令）
 		for _, t := range times {
 			if t.After(windowStart) {
