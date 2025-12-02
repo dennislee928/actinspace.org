@@ -1,0 +1,82 @@
+services:
+  # Space-SOC Backend
+  space-soc-backend:
+    build:
+      context: ..
+      dockerfile: space-soc/backend/Dockerfile
+    container_name: space-soc-backend
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - DATABASE_URL=  # 使用 SQLite（預設）
+    volumes:
+      - space-soc-data:/root
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"] || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # Space-SOC Frontend
+  space-soc-frontend:
+    build:
+      context: ..
+      dockerfile: space-soc/frontend/Dockerfile
+    container_name: space-soc-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8080
+    depends_on:
+      - space-soc-backend
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000"] || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # Satellite Simulator
+  satellite-sim:
+    build:
+      context: ..
+      dockerfile: satellite-sim/Dockerfile
+    container_name: satellite-sim
+    ports:
+      - "8082:8082"
+    environment:
+      - PORT=8082
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8082/health"] || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # TT&C Gateway
+  ttc-gateway:
+    build:
+      context: ..
+      dockerfile: ttc-gateway/Dockerfile
+    container_name: ttc-gateway
+    ports:
+      - "8081:8081"
+    environment:
+      - PORT=8081
+      - SATELLITE_SIM_URL=http://satellite-sim:8082
+      - SPACE_SOC_URL=http://space-soc-backend:8080
+    depends_on:
+      - satellite-sim
+      - space-soc-backend
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8081/health"] || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  space-soc-data:
+

@@ -95,6 +95,30 @@ func logCommandEvent(eventType string, data map[string]interface{}) {
 	log.Println(string(jsonData))
 }
 
+// 發送事件到 Space-SOC
+func sendEventToSOC(socURL string, event map[string]interface{}) {
+	if socURL == "" {
+		return // 如果未設定 SOC URL，跳過
+	}
+
+	eventData, err := json.Marshal(event)
+	if err != nil {
+		log.Printf("無法序列化事件: %v", err)
+		return
+	}
+
+	resp, err := http.Post(socURL+"/api/v1/events", "application/json", bytes.NewBuffer(eventData))
+	if err != nil {
+		log.Printf("無法發送事件到 Space-SOC: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		log.Printf("Space-SOC 回應錯誤狀態碼: %d", resp.StatusCode)
+	}
+}
+
 func main() {
 	r := gin.Default()
 
@@ -160,6 +184,17 @@ func main() {
 			"reason":       decision.Reason,
 		})
 
+		// 發送到 Space-SOC
+		socURL := os.Getenv("SPACE_SOC_URL")
+		sendEventToSOC(socURL, map[string]interface{}{
+			"component":    "ttc-gateway",
+			"eventType":    "policy_decision",
+			"command":      req.Command,
+			"operatorRole": roleStr,
+			"decision":     decisionStr,
+			"reason":       decision.Reason,
+		})
+
 		if !decision.Allowed {
 			resp := CommandResponse{
 				Status:      "denied",
@@ -188,6 +223,17 @@ func main() {
 			"command":      req.Command,
 			"operatorRole": roleStr,
 			"satelliteResponse": satResp.Status,
+		})
+
+		// 發送到 Space-SOC
+		socURL := os.Getenv("SPACE_SOC_URL")
+		sendEventToSOC(socURL, map[string]interface{}{
+			"component":    "ttc-gateway",
+			"eventType":    "command_forwarded",
+			"command":      req.Command,
+			"operatorRole": roleStr,
+			"status":       satResp.Status,
+			"message":      satResp.Message,
 		})
 
 		resp := CommandResponse{
