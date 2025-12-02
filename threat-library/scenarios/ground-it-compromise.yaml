@@ -1,0 +1,62 @@
+id: ground-it-compromise
+name: Ground IT Compromise Pivoting to TT&C
+description: |
+  An attacker compromises the ground IT infrastructure and attempts to
+  pivot into satellite operations by accessing TT&C systems.
+  
+  This scenario demonstrates multi-segment attack detection and correlation
+  across different system planes.
+
+objectives:
+  - Gain access to ground IT systems
+  - Pivot to mission-critical TT&C infrastructure
+  - Exfiltrate sensitive mission data
+  - Disrupt satellite operations
+
+assumed_attacker:
+  type: Advanced Persistent Threat (APT)
+  capabilities:
+    - Initial access to ground IT
+    - Lateral movement capabilities
+    - Credential theft
+
+tactics:
+  - SPARTA: T0001 - Initial Access (Ground Segment)
+  - SPARTA: T0002 - Lateral Movement
+  - MITRE ATT&CK: T1021 - Remote Services
+  - MITRE ATT&CK: T1078 - Valid Accounts
+
+techniques:
+  - Compromise ground IT systems
+  - Steal operator credentials
+  - Access TT&C gateway with stolen credentials
+  - Attempt to send commands from compromised account
+
+expected_observables:
+  - CI/CD: Unusual build activities
+  - Ground IT: Unusual login patterns
+  - TT&C Gateway: Commands from unusual source IPs
+  - TT&C Gateway: Time-of-day anomalies
+  - Space-SOC: Correlated events across multiple components
+  - Space-SOC: Multi-stage incident timeline
+
+playbook_steps:
+  1. Attacker compromises ground IT system
+  2. Steals operator credentials
+  3. Accesses TT&C gateway from unusual location/time
+  4. Anomaly detector flags unusual role activity
+  5. Policy engine may allow commands (valid credentials)
+  6. Space-SOC correlates events from multiple sources
+  7. Security team identifies multi-stage attack
+  8. Incident response initiated
+
+mitigations:
+  - Network segmentation
+  - Multi-factor authentication
+  - Behavioral anomaly detection
+  - Centralized security monitoring
+  - Incident correlation and analysis
+  - Regular credential rotation
+
+severity: critical
+

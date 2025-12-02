@@ -1,0 +1,53 @@
+id: unauthorized-dangerous-command
+name: Unauthorized Operator Sending Dangerous Commands
+description: |
+  An operator with insufficient privileges attempts to send dangerous commands
+  (e.g., deorbit, disable power) that could compromise mission safety.
+  
+  This scenario demonstrates Zero-Trust policy enforcement and role-based
+  access control in the TT&C gateway.
+
+objectives:
+  - Execute destructive commands without proper authorization
+  - Bypass safety controls
+  - Cause mission disruption
+
+assumed_attacker:
+  type: Insider Threat / Compromised Account
+  capabilities:
+    - Valid operator credentials (but insufficient privileges)
+    - Access to ground station systems
+
+tactics:
+  - SPARTA: T0005 - Unauthorized Command Execution
+  - MITRE ATT&CK: T1078 - Valid Accounts
+
+techniques:
+  - Use operator/engineer role to attempt admin-only commands
+  - Attempt commands during critical mission phases
+  - Rapid command execution to overwhelm controls
+
+expected_observables:
+  - TT&C Gateway: Policy decision logs showing "denied"
+  - TT&C Gateway: Anomaly detection alerts (rate limit, unusual role activity)
+  - Space-SOC: Policy violation events
+  - Space-SOC: Anomaly events with high severity
+
+playbook_steps:
+  1. Operator authenticates with non-admin token
+  2. Attempts to send "deorbit" command
+  3. TT&C gateway policy engine evaluates request
+  4. Policy denies command (insufficient role)
+  5. Anomaly detector flags unusual activity
+  6. Events are logged and sent to Space-SOC
+  7. Incident is created for security review
+
+mitigations:
+  - Role-based access control (RBAC)
+  - Policy-as-code enforcement
+  - Command risk classification
+  - Anomaly detection on command patterns
+  - Full audit logging
+
+severity: high
+

@@ -1,0 +1,57 @@
+id: malicious-ota-update
+name: Malicious OTA Update Attempt
+description: |
+  An attacker attempts to inject a modified or compromised software update
+  into the satellite system through the supply chain or by bypassing CI/CD.
+  
+  This scenario demonstrates how the platform detects and prevents malicious
+  software updates using signature verification, SBOM checks, and policy enforcement.
+
+objectives:
+  - Inject malicious code into satellite firmware
+  - Bypass security controls to deploy compromised software
+  - Maintain persistence or exfiltrate data
+
+assumed_attacker:
+  type: Advanced Persistent Threat (APT)
+  capabilities:
+    - Supply chain compromise
+    - CI/CD pipeline access
+    - Code signing key theft (attempted)
+
+tactics:
+  - SPARTA: T0010 - Supply Chain Compromise
+  - SPARTA: T0011 - Malicious Software Update
+  - MITRE ATT&CK: T1195 - Supply Chain Compromise
+
+techniques:
+  - Attempt to inject modified image into registry
+  - Bypass CI security scans
+  - Forge or steal signing keys
+  - Deploy update with known vulnerabilities
+
+expected_observables:
+  - CI pipeline: Unexpected artefact in build logs
+  - Registry: Anomalous image push events
+  - OTA orchestrator: Signature verification failures
+  - OTA orchestrator: SBOM policy check failures
+  - Space-SOC: High-severity incidents related to update denials
+
+playbook_steps:
+  1. Attacker modifies satellite-sim source code
+  2. Attempts to push to CI without proper authentication
+  3. CI pipeline detects unauthorized changes
+  4. If CI is bypassed, signing service rejects invalid signature
+  5. OTA orchestrator verifies signature and SBOM
+  6. Update is denied and incident is created in Space-SOC
+  7. Security team is alerted
+
+mitigations:
+  - Signed artefacts with attestation
+  - SBOM generation and policy checks
+  - CI/CD security scanning (SAST/SCA)
+  - OTA update verification workflow
+  - Centralized logging and monitoring
+
+severity: critical
+

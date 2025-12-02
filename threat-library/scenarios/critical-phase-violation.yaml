@@ -1,0 +1,52 @@
+id: critical-phase-violation
+name: Command Execution During Critical Mission Phase
+description: |
+  An operator attempts to execute non-critical commands during a critical
+  mission phase, potentially disrupting important operations.
+  
+  This scenario demonstrates mission phase-aware policy enforcement.
+
+objectives:
+  - Execute commands during restricted mission phases
+  - Disrupt critical operations
+  - Bypass phase-based restrictions
+
+assumed_attacker:
+  type: Insider Threat / Misconfiguration
+  capabilities:
+    - Valid operator credentials
+    - Access to command interface
+
+tactics:
+  - SPARTA: T0008 - Mission Phase Violation
+  - MITRE ATT&CK: T1498 - Network Denial of Service
+
+techniques:
+  - Send non-critical commands during critical phase
+  - Attempt to override phase restrictions
+  - Ignore mission phase warnings
+
+expected_observables:
+  - TT&C Gateway: Policy decision showing phase restriction
+  - TT&C Gateway: Mission phase context in logs
+  - Space-SOC: Policy violation events
+  - Space-SOC: Phase-aware incident creation
+
+playbook_steps:
+  1. Mission enters critical phase
+  2. Operator attempts non-critical command
+  3. Policy engine checks mission phase
+  4. Policy denies command (phase restriction)
+  5. Event logged with phase context
+  6. Space-SOC creates phase-aware incident
+  7. Mission control reviews violation
+
+mitigations:
+  - Mission phase tracking
+  - Phase-aware policy rules
+  - Command classification by criticality
+  - Operator training on phase restrictions
+  - Automated phase transition notifications
+
+severity: medium
+

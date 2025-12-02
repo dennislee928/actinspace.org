@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"actinspace.org/ttc-gateway/internal/anomaly"
+	"actinspace.org/ttc-gateway/internal/policy"
 )
 
 // CommandRequest 定義從 ground-station 接收到的指令格式。
@@ -28,36 +30,16 @@ type CommandResponse struct {
 	ProcessedAt time.Time `json:"processedAt"`
 }
 
-// PolicyDecision 定義 policy 引擎的決策結果。
-type PolicyDecision struct {
-	Allowed bool
-	Reason  string
-}
+// 全域變數：policy 引擎和異常偵測器
+var (
+	policyEngine  *policy.Engine
+	anomalyDetector *anomaly.Detector
+)
 
-// 硬編碼的 policy 規則（Phase 1 MVP）
-func evaluatePolicy(cmd string, operatorRole string) PolicyDecision {
-	// 危險指令列表
-	dangerousCommands := map[string]bool{
-		"deorbit":      true,
-		"disable_power": true,
-		"format_memory": true,
-	}
-
-	// 檢查是否為危險指令
-	if dangerousCommands[cmd] {
-		if operatorRole != "admin" {
-			return PolicyDecision{
-				Allowed: false,
-				Reason:  fmt.Sprintf("command '%s' requires admin role, got '%s'", cmd, operatorRole),
-			}
-		}
-	}
-
-	// 預設允許
-	return PolicyDecision{
-		Allowed: true,
-		Reason:  "command allowed by policy",
-	}
+// 初始化 policy 和異常偵測
+func init() {
+	policyEngine = policy.NewEngine()
+	anomalyDetector = anomaly.NewDetector(anomaly.Config{})
 }
 
 // 轉發指令到 satellite-sim
@@ -169,8 +151,48 @@ func main() {
 		operatorRole, _ := c.Get("operatorRole")
 		roleStr := operatorRole.(string)
 
-		// Policy 評估
-		decision := evaluatePolicy(req.Command, roleStr)
+		// 異常偵測（在 policy 評估之前）
+		timestamp := time.Now().UTC()
+		anomalies := anomalyDetector.CheckCommand(req.Command, roleStr, timestamp)
+		
+		// 如果有異常，發送到 Space-SOC
+		socURL := os.Getenv("SPACE_SOC_URL")
+		for _, anom := range anomalies {
+			logCommandEvent("anomaly_detected", map[string]interface{}{
+				"type":         anom.Type,
+				"command":      anom.Command,
+				"operatorRole": anom.OperatorRole,
+				"message":      anom.Message,
+				"severity":     anom.Severity,
+			})
+
+			sendEventToSOC(socURL, map[string]interface{}{
+				"component":    "ttc-gateway",
+				"eventType":    "anomaly_detected",
+				"anomalyType":  string(anom.Type),
+				"command":      anom.Command,
+				"operatorRole": anom.OperatorRole,
+				"message":      anom.Message,
+				"severity":     anom.Severity,
+				"metadata":     anom.Metadata,
+			})
+		}
+
+		// Policy 評估（使用新的 policy 引擎）
+		missionPhase := os.Getenv("MISSION_PHASE")
+		if missionPhase == "" {
+			missionPhase = "normal"
+		}
+		
+		policyCtx := policy.CommandContext{
+			Command:      req.Command,
+			OperatorRole: roleStr,
+			SatelliteID:  req.SatelliteID,
+			MissionPhase: missionPhase,
+			TimeOfDay:    timestamp,
+		}
+		
+		decision := policyEngine.Evaluate(policyCtx)
 
 		// 記錄決策
 		decisionStr := "denied"
@@ -182,10 +204,11 @@ func main() {
 			"operatorRole": roleStr,
 			"decision":     decisionStr,
 			"reason":       decision.Reason,
+			"ruleID":       decision.RuleID,
+			"severity":     decision.Severity,
 		})
 
 		// 發送到 Space-SOC
-		socURL := os.Getenv("SPACE_SOC_URL")
 		sendEventToSOC(socURL, map[string]interface{}{
 			"component":    "ttc-gateway",
 			"eventType":    "policy_decision",
@@ -193,6 +216,8 @@ func main() {
 			"operatorRole": roleStr,
 			"decision":     decisionStr,
 			"reason":       decision.Reason,
+			"ruleID":       decision.RuleID,
+			"severity":     decision.Severity,
 		})
 
 		if !decision.Allowed {

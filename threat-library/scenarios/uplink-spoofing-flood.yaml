@@ -1,0 +1,58 @@
+id: uplink-spoofing-flood
+name: Uplink Spoofing / Command Flood Attack
+description: |
+  An attacker attempts to send raw commands directly to the TT&C gateway
+  or satellite, bypassing the official ground station, or floods the system
+  with commands to cause denial of service.
+  
+  This scenario demonstrates authentication enforcement and rate limiting.
+
+objectives:
+  - Bypass authentication controls
+  - Flood the system with commands
+  - Cause denial of service
+  - Inject unauthorized commands
+
+assumed_attacker:
+  type: External Attacker
+  capabilities:
+    - Network access to TT&C gateway
+    - Ability to craft HTTP requests
+    - Potential RF access (simulated)
+
+tactics:
+  - SPARTA: T0006 - Uplink Interference
+  - SPARTA: T0007 - Command Injection
+  - MITRE ATT&CK: T1499 - Endpoint Denial of Service
+
+techniques:
+  - Send unauthenticated requests to gateway
+  - Rapid command flooding
+  - Spoof source addresses
+  - Attempt to bypass authentication middleware
+
+expected_observables:
+  - TT&C Gateway: Authentication failures
+  - TT&C Gateway: Rate limit exceeded events
+  - TT&C Gateway: Command burst anomalies
+  - Space-SOC: Multiple anomaly events
+  - Space-SOC: High-frequency unauthorized access attempts
+
+playbook_steps:
+  1. Attacker sends unauthenticated command to gateway
+  2. Gateway rejects request (missing/invalid token)
+  3. Attacker attempts rapid command flooding
+  4. Anomaly detector flags command burst
+  5. Rate limiting blocks excessive requests
+  6. All events logged to Space-SOC
+  7. Security team investigates attack pattern
+
+mitigations:
+  - Strong authentication (token-based, future: mTLS)
+  - Rate limiting per source
+  - Anomaly detection on traffic patterns
+  - Network segmentation
+  - DDoS protection
+
+severity: high
+
