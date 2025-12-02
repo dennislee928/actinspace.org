@@ -6,8 +6,7 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 COPY space-soc/frontend/package.json space-soc/frontend/package-lock.json* ./
-# 如果有 package-lock.json 則使用 npm ci，否則使用 npm install
-RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
+RUN npm ci
 
 # Rebuild the source code only when needed
 FROM base AS builder
