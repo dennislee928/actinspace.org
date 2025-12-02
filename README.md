@@ -16,9 +16,9 @@ The goal is to show how a modern **Zero-Trust, threat-informed, DevSecOps** appr
 
 The design aligns with current guidance such as:
 
-- **ENISA Space Threat Landscape** (commercial satellites under increasing cyber attack, including jamming, hijacking and network exploitation) :contentReference[oaicite:0]{index=0}  
-- **U.S. Space Policy Directive-5 (SPD-5)** – cybersecurity principles for space systems (risk-based design, supply-chain security, protection of command links, incident response) :contentReference[oaicite:1]{index=1}  
-- **Space-specific threat frameworks** such as **SPARTA / SPACE-SHIELD**, which extend MITRE-style TTPs to space systems :contentReference[oaicite:2]{index=2}  
+- **ENISA Space Threat Landscape** (commercial satellites under increasing cyber attack, including jamming, hijacking and network exploitation)
+- **U.S. Space Policy Directive-5 (SPD-5)** – cybersecurity principles for space systems (risk-based design, supply-chain security, protection of command links, incident response)
+- **Space-specific threat frameworks** such as **SPARTA / SPACE-SHIELD**, which extend MITRE-style TTPs to space systems
 
 This is a **simulation-only** environment: it does not connect to any real satellite or operational ground system.
 
@@ -46,7 +46,7 @@ The platform is organised into three planes:
 3. **Operations & Intelligence Plane (Space-SOC / Space-CERT)**  
    A **Space-aware SOC** that:
    - Ingests logs and telemetry from the TT&C gateway, simulated satellites, and CI pipeline
-   - Maps events to **space-specific attack flows** (SPARTA / ATT&CK-style) :contentReference[oaicite:3]{index=3}  
+   - Maps events to **space-specific attack flows** (SPARTA / ATT&CK-style)
    - Provides dashboards, timelines and basic correlation
    - Hosts a small **threat scenario library** for training and red-team / blue-team exercises
 
@@ -84,183 +84,130 @@ For detailed diagrams and data flows, see [`ARCHITECTURE.md`](./ARCHITECTURE.md)
 └── threat-library/           # SPARTA / ENISA-aligned scenarios
 ```
 
-3. Core features
-3.1 Space DevSecOps & supply chain (Plane 1)
+## 3. Core features
 
-Containerised build pipelines for space workloads (satellite and ground software)
+### 3.1 Space DevSecOps & supply chain (Plane 1)
 
-Static analysis (SAST) and dependency / image scanning (SCA) integrated into CI
+- Containerised build pipelines for space workloads (satellite and ground software)
+- Static analysis (SAST) and dependency / image scanning (SCA) integrated into CI
+- SBOM generation (e.g. CycloneDX / SPDX) for all deployable artefacts
+- Artefact signing and attestation (build metadata, test results, scan status)
+- Simulated secure OTA update flow from ground to satellite-sim nodes
+- Traceability from production nodes back to artefacts and source commits
 
-SBOM generation (e.g. CycloneDX / SPDX) for all deployable artefacts
+This plane is intended to demonstrate how SPD-5 and related guidance on supply-chain security can be operationalised for space systems.
 
-Artefact signing and attestation (build metadata, test results, scan status)
+### 3.2 Zero-Trust TT&C Gateway (Plane 2)
 
-Simulated secure OTA update flow from ground to satellite-sim nodes
+- Single logical gateway for all commands towards space assets
+- Identity-aware access control (e.g. JWT / OIDC tokens or mTLS)
+- Policy-as-code engine to validate each command against:
+  - Operator role
+  - Mission phase / satellite state
+  - Risk level of the command
+- Command signing / verification and integrity checks
+- Rate limiting and baseline-based anomaly detection for TT&C traffic
+- Rich audit trail for all command decisions (allow / deny / override)
 
-Traceability from production nodes back to artefacts and source commits
+### 3.3 Space-SOC / Space-CERT (Plane 3)
 
-This plane is intended to demonstrate how SPD-5 and related guidance on supply-chain security can be operationalised for space systems. 
-stli.iii.org.tw
-+2
-ResearchGate
-+2
+- **Centralised ingestion of:**
+  - TT&C gateway logs (commands, decisions, anomalies)
+  - Satellite and ground-station telemetry
+  - CI / supply-chain events (builds, scans, releases, updates)
+- Mapping of observed events to space-specific attack flows using open references such as SPARTA / SPACE-SHIELD and ENISA's space threat landscape.
+- **Analyst dashboards:**
+  - Mission overview and asset inventory
+  - Attack timeline and affected assets
+  - Scenario "replays" for training / exercises
+- Hooks for future integration with cyber ranges and red-team tooling
 
-3.2 Zero-Trust TT&C Gateway (Plane 2)
-
-Single logical gateway for all commands towards space assets
-
-Identity-aware access control (e.g. JWT / OIDC tokens or mTLS)
-
-Policy-as-code engine to validate each command against:
-
-Operator role
-
-Mission phase / satellite state
-
-Risk level of the command
-
-Command signing / verification and integrity checks
-
-Rate limiting and baseline-based anomaly detection for TT&C traffic
-
-Rich audit trail for all command decisions (allow / deny / override)
-
-3.3 Space-SOC / Space-CERT (Plane 3)
-
-Centralised ingestion of:
-
-TT&C gateway logs (commands, decisions, anomalies)
-
-Satellite and ground-station telemetry
-
-CI / supply-chain events (builds, scans, releases, updates)
-
-Mapping of observed events to space-specific attack flows using open references such as SPARTA / SPACE-SHIELD and ENISA’s space threat landscape. 
-Space & Cybersecurity Info
-+3
-enisa.europa.eu
-+3
-aerospace.org
-+3
-
-Analyst dashboards:
-
-Mission overview and asset inventory
-
-Attack timeline and affected assets
-
-Scenario “replays” for training / exercises
-
-Hooks for future integration with cyber ranges and red-team tooling
-
-4. Example scenarios
+## 4. Example scenarios
 
 The platform is designed to support several canonical scenarios:
 
-Malicious or compromised operator
+- **Malicious or compromised operator**
+  - An operator attempts to send dangerous commands (e.g. de-orbit, disable payload).
+  - Zero-Trust TT&C policies block or challenge the command; Space-SOC raises alerts and records evidence.
 
-An operator attempts to send dangerous commands (e.g. de-orbit, disable payload).
+- **Malicious software update**
+  - A build artefact with known vulnerabilities or altered origin attempts to be deployed as a satellite update.
+  - The supply-chain plane rejects it (failed scans, invalid attestation); the update is never accepted by satellite-sim.
 
-Zero-Trust TT&C policies block or challenge the command; Space-SOC raises alerts and records evidence.
+- **Uplink hijack / spoofed commands (simulated)**
+  - An attacker node sends raw commands that bypass the official ground-station-sim.
+  - TT&C gateway discards unauthenticated traffic; anomalous patterns are highlighted in the SOC.
 
-Malicious software update
+- **Coordinated campaign across ground and space segments**
+  - By correlating CI events, TT&C logs and telemetry, Space-SOC reconstructs a multi-stage attack that began in the ground IT environment and propagated towards space assets.
 
-A build artefact with known vulnerabilities or altered origin attempts to be deployed as a satellite update.
+These are documented in more detail in `docs/USE_CASES.md` (to be implemented).
 
-The supply-chain plane rejects it (failed scans, invalid attestation); the update is never accepted by satellite-sim.
+## 5. Technology stack
 
-Uplink hijack / spoofed commands (simulated)
+**Languages**
 
-An attacker node sends raw commands that bypass the official ground-station-sim.
+- Go (backend services: TT&C gateway, SOC API, signing service, simulators)
+- TypeScript / React (Space-SOC frontend, operator UI)
 
-TT&C gateway discards unauthenticated traffic; anomalous patterns are highlighted in the SOC.
+**Infrastructure**
 
-Coordinated campaign across ground and space segments
+- Docker & Docker Compose (local lab)
+- Optionally Kubernetes / K3s for multi-node simulation
+- PostgreSQL or SQLite (event store and SOC data)
+- Message broker (e.g. NATS / Redis Streams) for telemetry and command bus
 
-By correlating CI events, TT&C logs and telemetry, Space-SOC reconstructs a multi-stage attack that began in the ground IT environment and propagated towards space assets.
+**Security & DevSecOps**
 
-These are documented in more detail in docs/USE_CASES.md
- (to be implemented).
+- Static analysis and SCA tools (e.g. Semgrep / Trivy) integrated into CI
+- SBOM generation tools (CycloneDX / Syft or equivalent)
+- Simple in-repo signing / verification (e.g. based on Go crypto; pluggable to cosign / in-toto patterns later)
 
-5. Technology stack
-
-Languages
-
-Go (backend services: TT&C gateway, SOC API, signing service, simulators)
-
-TypeScript / React (Space-SOC frontend, operator UI)
-
-Infrastructure
-
-Docker & Docker Compose (local lab)
-
-Optionally Kubernetes / K3s for multi-node simulation
-
-PostgreSQL or SQLite (event store and SOC data)
-
-Message broker (e.g. NATS / Redis Streams) for telemetry and command bus
-
-Security & DevSecOps
-
-Static analysis and SCA tools (e.g. Semgrep / Trivy) integrated into CI
-
-SBOM generation tools (CycloneDX / Syft or equivalent)
-
-Simple in-repo signing / verification (e.g. based on Go crypto; pluggable to cosign / in-toto patterns later)
-
-6. Quickstart (planned)
+## 6. Quickstart (planned)
 
 Status: this is a design README. Concrete commands will be updated once the initial implementation lands.
 
-Prerequisites
+**Prerequisites**
 
-Docker & Docker Compose
+- Docker & Docker Compose
+- Go ≥ 1.22
+- Node.js ≥ 20
 
-Go ≥ 1.22
+**Clone repository**
 
-Node.js ≥ 20
-
-Clone repository
-
+```bash
 git clone https://github.com/<your-account>/space-cyber-resilience-platform.git
 cd space-cyber-resilience-platform
+```
 
+**Start the lab environment**
 
-Start the lab environment
-
+```bash
 docker compose -f infra/docker-compose.yaml up -d
+```
 
+**Open Space-SOC dashboard**
 
-Open Space-SOC dashboard
+- Navigate to http://localhost:3000 for the web UI
+- Default demo credentials will be documented once implemented
 
-Navigate to http://localhost:3000 for the web UI
+**Trigger sample scenarios**
 
-Default demo credentials will be documented once implemented
+- Use ground-station-sim CLI or UI to send legitimate commands
+- Use attacker CLI to replay sample attack flows from threat-library/
 
-Trigger sample scenarios
+## 7. Roadmap
 
-Use ground-station-sim CLI or UI to send legitimate commands
+The development roadmap and milestones are tracked in [`plan.md`](./plan.md). In short:
 
-Use attacker CLI to replay sample attack flows from threat-library/
+- **Phase 1** – Minimal end-to-end flow (DevSecOps → TT&C gateway → SOC)
+- **Phase 2** – Threat library, attack simulation and richer analytics
+- **Phase 3** – Hardening, documentation and packaging for:
+  - Innovation contests (e.g. ActInSpace ADS #6)
+  - Academic publication / MSc project work
+  - Potential spin-off as a niche product
 
-7. Roadmap
-
-The development roadmap and milestones are tracked in plan.md
-. In short:
-
-Phase 1 – Minimal end-to-end flow (DevSecOps → TT&C gateway → SOC)
-
-Phase 2 – Threat library, attack simulation and richer analytics
-
-Phase 3 – Hardening, documentation and packaging for:
-
-Innovation contests (e.g. ActInSpace ADS #6)
-
-Academic publication / MSc project work
-
-Potential spin-off as a niche product
-
-8. Disclaimer
+## 8. Disclaimer
 
 This repository is for research and educational purposes only.
 
@@ -268,28 +215,11 @@ All satellites, ground systems and attacks are simulated.
 
 The project does not represent Airbus, CNES, ENISA, NIST or any space operator.
 
-9. Acknowledgements & references (non-exhaustive)
+## 9. Acknowledgements & references (non-exhaustive)
 
-ENISA – Space Threat Landscape reports 
-enisa.europa.eu
-+1
-
-U.S. Space Policy Directive-5 – Cybersecurity Principles for Space Systems 
-trumpwhitehouse.archives.gov
-+2
-cisa.gov
-+2
-
-Aerospace Corporation – SPARTA Matrix for space-cyber TTPs 
-aerospace.org
-
-SPACE-SHIELD and related space cyber frameworks 
-Space & Cybersecurity Info
-+1
-
-Airbus Cyber Programmes / Defence and Space cyber activities 
-cyber
-+2
-Airbus
-+2
+- **ENISA** – Space Threat Landscape reports
+- **U.S. Space Policy Directive-5** – Cybersecurity Principles for Space Systems
+- **Aerospace Corporation** – SPARTA Matrix for space-cyber TTPs
+- **SPACE-SHIELD** and related space cyber frameworks
+- **Airbus** – Cyber Programmes / Defence and Space cyber activities
 
