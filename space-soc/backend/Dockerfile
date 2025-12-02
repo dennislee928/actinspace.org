@@ -1,4 +1,4 @@
-FROM golang:1.22-alpine AS builder
+FROM golang:1.23-alpine AS builder
 
 # 安裝 CGO 依賴（SQLite 需要）
 RUN apk add --no-cache gcc musl-dev

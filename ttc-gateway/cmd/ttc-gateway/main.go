@@ -226,7 +226,6 @@ func main() {
 		})
 
 		// 發送到 Space-SOC
-		socURL := os.Getenv("SPACE_SOC_URL")
 		sendEventToSOC(socURL, map[string]interface{}{
 			"component":    "ttc-gateway",
 			"eventType":    "command_forwarded",
