@@ -1,14 +1,10 @@
-
----
-
-```markdown
 <!-- ARCHITECTURE.md -->
 
 # Space Cyber Resilience Platform – Architecture
 
-This document describes the architecture of the **Space Cyber Resilience Platform**, designed as a concrete response to **ActInSpace ADS #6 – “Protect Airbus space assets from cyber threats”**.
+This document describes the architecture of the **Space Cyber Resilience Platform**, designed as a concrete response to **ActInSpace ADS #6 – "Protect Airbus space assets from cyber threats"**.
 
-The platform models a simplified but realistic **space system** and applies contemporary **space-cybersecurity guidance** from ENISA, SPD-5 and space-specific threat frameworks such as SPARTA / SPACE-SHIELD. :contentReference[oaicite:11]{index=11}  
+The platform models a simplified but realistic **space system** and applies contemporary **space-cybersecurity guidance** from ENISA, SPD-5 and space-specific threat frameworks such as SPARTA / SPACE-SHIELD.
 
 ---
 
@@ -33,10 +29,10 @@ The platform models a simplified but realistic **space system** and applies cont
 
 The architecture is guided by:
 
-1. **Risk-based and lifecycle-wide security** – from SPD-5 (design, development, deployment, operations, decommissioning). :contentReference[oaicite:12]{index=12}  
-2. **Zero-Trust Architecture (ZTA)** – identity-centric, least-privilege, continuous verification on all links (especially TT&C). :contentReference[oaicite:13]{index=13}  
-3. **Threat-informed defence** – using ENISA’s space threat analysis and SPARTA / SPACE-SHIELD style matrices to model TTPs and detection logic. :contentReference[oaicite:14]{index=14}  
-4. **Secure DevSecOps and supply chain** – secure builds, SBOMs, attestation, and controlled updates to space assets. :contentReference[oaicite:15]{index=15}  
+1. **Risk-based and lifecycle-wide security** – from SPD-5 (design, development, deployment, operations, decommissioning).
+2. **Zero-Trust Architecture (ZTA)** – identity-centric, least-privilege, continuous verification on all links (especially TT&C).
+3. **Threat-informed defence** – using ENISA's space threat analysis and SPARTA / SPACE-SHIELD style matrices to model TTPs and detection logic.
+4. **Secure DevSecOps and supply chain** – secure builds, SBOMs, attestation, and controlled updates to space assets.
 5. **Composability and observability** – each plane is independently deployable, but all emit structured telemetry to the Space-SOC.
 
 ---
@@ -78,179 +74,117 @@ flowchart LR
     INGEST --> CORR --> DASH
     TLIB --> CORR
 ```
-4. Component breakdown
-4.1 DevSecOps & Supply Chain (Plane 1)
 
-Objectives
+## 4. Component breakdown
 
-Ensure that software destined for space assets is built, scanned, signed and traced end-to-end.
+### 4.1 DevSecOps & Supply Chain (Plane 1)
 
-Model supply-chain guidance from SPD-5 and ENISA (supply-chain attacks, malicious updates, dependency risk). 
-stli.iii.org.tw
-+2
-ResearchGate
-+2
+**Objectives**
+
+- Ensure that software destined for space assets is built, scanned, signed and traced end-to-end.
+- Model supply-chain guidance from SPD-5 and ENISA (supply-chain attacks, malicious updates, dependency risk).
+
+**Key components**
 
-Key components
+- **supply-chain/ci/** – CI/CD pipelines
+  - Build container images / binaries for satellite-sim, ground-station-sim, ttc-gateway, etc.
+  - Run SAST and SCA.
+  - Generate SBOMs.
 
-supply-chain/ci/ – CI/CD pipelines
+- **supply-chain/signing-service/**
+  - Signs artefacts and generates attestation metadata (build ID, time, test results, scan status).
+  - Exposes verification API for other components.
 
-Build container images / binaries for satellite-sim, ground-station-sim, ttc-gateway, etc.
+- **supply-chain/registry/** (logical; can be a standard registry)
+  - Stores signed images / packages.
+  - Provides metadata to OTA and Space-SOC.
 
-Run SAST and SCA.
+- **OTA orchestrator** (part of supply-chain/ and satellite-sim/)
+  - Secure update protocol for satellite-sim:
+    - Requests new version + attestation
+    - Verifies signature and policy
+    - Applies update or rejects with reason
 
-Generate SBOMs.
+### 4.2 TT&C Zero-Trust Gateway (Plane 2)
 
-supply-chain/signing-service/
+**Objectives**
 
-Signs artefacts and generates attestation metadata (build ID, time, test results, scan status).
+- Enforce Zero-Trust principles on the most critical interface: commands to space assets.
+- Provide a single control point for policy enforcement, telemetry and audit.
 
-Exposes verification API for other components.
+**Key components**
 
-supply-chain/registry/ (logical; can be a standard registry)
+- **ttc-gateway/api/**
+  - Receives commands from authenticated clients (ground-station-sim, potential automation).
+  - Normalises and validates commands.
 
-Stores signed images / packages.
+- **ttc-gateway/policy-engine/**
+  - Evaluates each command against:
+    - Operator identity & role
+    - Satellite state (e.g. normal / safe mode)
+    - Mission rules and risk thresholds
+  - Implemented with policy-as-code (e.g. REGO / DSL).
 
-Provides metadata to OTA and Space-SOC.
+- **ttc-gateway/anomaly-detector/**
+  - Tracks command patterns (frequency, type, timing).
+  - Raises alerts on anomalies (e.g. burst of destructive commands).
 
-OTA orchestrator (part of supply-chain/ and satellite-sim/)
+- **ttc-gateway/audit-logger/**
+  - Records full details of every decision (allow/deny) and forwards to Space-SOC.
 
-Secure update protocol for satellite-sim:
+- **satellite-sim/**
+  - Represents one or more spacecraft:
+    - Receives validated commands from the gateway.
+    - Emits telemetry, state changes and events.
 
-Requests new version + attestation
+- **ground-station-sim/**
+  - Emulates operator console / automation:
+    - Authenticates to gateway.
+    - Sends mission commands.
+    - Renders basic status and responses.
 
-Verifies signature and policy
+### 4.3 Operations & Intelligence – Space-SOC (Plane 3)
 
-Applies update or rejects with reason
+**Objectives**
 
-4.2 TT&C Zero-Trust Gateway (Plane 2)
+- Provide situational awareness, attack detection and training / simulation capabilities.
+- Integrate space-specific threat knowledge (SPARTA / SPACE-SHIELD, ENISA Space Threat Landscape).
 
-Objectives
+**Key components**
 
-Enforce Zero-Trust principles on the most critical interface: commands to space assets.
+- **space-soc/backend/**
+  - **Ingestion layer**
+    - Collects logs / events from:
+      - TT&C gateway
+      - Satellite and ground-station simulators
+      - Supply-chain pipelines
+    - Normalises into a common schema (e.g. JSON events).
+  - **Storage layer**
+    - Time-series / columnar store for events.
+    - Relational DB for assets, scenarios, and incidents.
+  - **Correlation & analytics**
+    - Rules / queries mapping event patterns to known TTPs (SPARTA / ATT&CK style).
+    - Basic incident creation / scoring.
 
-Provide a single control point for policy enforcement, telemetry and audit.
+- **space-soc/frontend/**
+  - **Mission overview:**
+    - Assets, satellites, ground segments, their software versions and risk posture.
+  - **Attack timelines:**
+    - Commands, anomalies, telemetry anomalies, CI events.
+  - **Threat scenario explorer:**
+    - Visual representation of attack flows across planes.
 
-Key components
-
-ttc-gateway/api/
-
-Receives commands from authenticated clients (ground-station-sim, potential automation).
-
-Normalises and validates commands.
-
-ttc-gateway/policy-engine/
-
-Evaluates each command against:
-
-Operator identity & role
-
-Satellite state (e.g. normal / safe mode)
-
-Mission rules and risk thresholds
-
-Implemented with policy-as-code (e.g. REGO / DSL).
-
-ttc-gateway/anomaly-detector/
-
-Tracks command patterns (frequency, type, timing).
-
-Raises alerts on anomalies (e.g. burst of destructive commands).
-
-ttc-gateway/audit-logger/
-
-Records full details of every decision (allow/deny) and forwards to Space-SOC.
-
-satellite-sim/
-
-Represents one or more spacecraft:
-
-Receives validated commands from the gateway.
-
-Emits telemetry, state changes and events.
-
-ground-station-sim/
-
-Emulates operator console / automation:
-
-Authenticates to gateway.
-
-Sends mission commands.
-
-Renders basic status and responses.
-
-4.3 Operations & Intelligence – Space-SOC (Plane 3)
-
-Objectives
-
-Provide situational awareness, attack detection and training / simulation capabilities.
-
-Integrate space-specific threat knowledge (SPARTA / SPACE-SHIELD, ENISA Space Threat Landscape). 
-Space & Cybersecurity Info
-+3
-enisa.europa.eu
-+3
-aerospace.org
-+3
-
-Key components
-
-space-soc/backend/
-
-Ingestion layer
-
-Collects logs / events from:
-
-TT&C gateway
-
-Satellite and ground-station simulators
-
-Supply-chain pipelines
-
-Normalises into a common schema (e.g. JSON events).
-
-Storage layer
-
-Time-series / columnar store for events.
-
-Relational DB for assets, scenarios, and incidents.
-
-Correlation & analytics
-
-Rules / queries mapping event patterns to known TTPs (SPARTA / ATT&CK style).
-
-Basic incident creation / scoring.
-
-space-soc/frontend/
-
-Mission overview:
-
-Assets, satellites, ground segments, their software versions and risk posture.
-
-Attack timelines:
-
-Commands, anomalies, telemetry anomalies, CI events.
-
-Threat scenario explorer:
-
-Visual representation of attack flows across planes.
-
-threat-library/
-
-JSON / YAML definitions of attack scenarios:
-
-Example: “Malicious OTA update”, “Uplink spoofing attempt”, “Ground IT compromise pivoting to TT&C”.
-
-Each scenario references:
-
-Tactics / techniques (SPARTA / SPACE-SHIELD IDs where applicable).
-
-Expected observables (log features).
-
-Playbook steps.
-
-5. Data flows
-5.1 Normal software release and update
+- **threat-library/**
+  - JSON / YAML definitions of attack scenarios:
+    - Example: "Malicious OTA update", "Uplink spoofing attempt", "Ground IT compromise pivoting to TT&C".
+  - Each scenario references:
+    - Tactics / techniques (SPARTA / SPACE-SHIELD IDs where applicable).
+    - Expected observables (log features).
+    - Playbook steps.
+
+## 5. Data flows
+
+### 5.1 Normal software release and update
 
 Developer pushes changes to satellite-sim code.
 
@@ -270,7 +204,7 @@ Applies update and emits events.
 
 All steps generate events ingested by Space-SOC.
 
-5.2 Normal TT&C command
+### 5.2 Normal TT&C command
 
 Operator authenticates to ground-station-sim.
 
@@ -288,7 +222,7 @@ Gateway forwards command to satellite-sim and records full audit log.
 
 Satellite executes and returns telemetry; all relevant events go to Space-SOC.
 
-5.3 Example attack: malicious OTA update
+### 5.3 Example attack: malicious OTA update
 
 Attacker attempts to inject a modified image into registry or bypass CI.
 
@@ -308,7 +242,7 @@ OTA denial events
 
 A high-severity incident is created and shown to analysts.
 
-5.4 Example attack: uplink hijack / unauthorised commands (simulated)
+### 5.4 Example attack: uplink hijack / unauthorised commands (simulated)
 
 Attacker node sends raw commands directly to TT&C gateway or satellite-sim.
 
@@ -318,116 +252,81 @@ Satellite-sim either never receives commands, or rejects them at its own securit
 
 Space-SOC shows an attack timeline with source, attempted commands and defence mechanisms.
 
-6. Threat model (summary)
-6.1 Assets
+## 6. Threat model (summary)
 
-Space segment
+### 6.1 Assets
 
-Satellite-sim software and configuration
+**Space segment**
 
-Onboard update mechanism and keys
+- Satellite-sim software and configuration
+- Onboard update mechanism and keys
 
-Ground segment
+**Ground segment**
 
-Ground-station-sim application
+- Ground-station-sim application
+- TT&C gateway
+- DevSecOps / CI environment
 
-TT&C gateway
+**Shared infrastructure**
 
-DevSecOps / CI environment
+- Artefact registry
+- Logs and telemetry datastore
+- Identity provider (conceptual)
 
-Shared infrastructure
+### 6.2 Trust boundaries
 
-Artefact registry
+- Between CI / signing service and registry
+- Between ground-station-sim and TT&C gateway
+- Between TT&C gateway and satellite-sim
+- Between all components and Space-SOC
 
-Logs and telemetry datastore
+### 6.3 Representative threats
 
-Identity provider (conceptual)
+- **T1 – Malicious or compromised software updates**
+  - Supply-chain / CI compromise; malicious images deployed to satellites.
 
-6.2 Trust boundaries
+- **T2 – Unauthorised command injection**
+  - Stolen credentials, weak auth, direct uplink spoofing attempts.
 
-Between CI / signing service and registry
+- **T3 – Telemetry and log tampering**
+  - Attackers suppress or alter evidence to evade detection.
 
-Between ground-station-sim and TT&C gateway
+- **T4 – Multi-segment campaigns**
+  - Ground IT compromise pivoting into satellite operations.
 
-Between TT&C gateway and satellite-sim
+### 6.4 Mitigations mapping (high level)
 
-Between all components and Space-SOC
+- **T1** – Use signed artefacts, attestation, SBOM and policy checks; align with SPD-5 and ENISA supply-chain guidance.
 
-6.3 Representative threats
+- **T2** – Enforce identity-aware TT&C gateway, least-privilege policies, command signing, anomaly detection; aligned with Zero-Trust for space communications.
 
-T1 – Malicious or compromised software updates
+- **T3** – Centralised, append-only logging, integrity checks on logs, and independent monitoring in Space-SOC.
 
-Supply-chain / CI compromise; malicious images deployed to satellites.
+- **T4** – Holistic visibility where CI, gateway and satellite telemetry all feed correlation and scenario detection based on SPARTA / SPACE-SHIELD style attack flows.
 
-T2 – Unauthorised command injection
+A more detailed threat model and mapping to specific SPARTA / SPACE-SHIELD techniques can be captured in `docs/THREAT_MODEL_SPARTA_ENISA.md`.
 
-Stolen credentials, weak auth, direct uplink spoofing attempts.
+## 7. Non-functional considerations
 
-T3 – Telemetry and log tampering
+- **Modularity** – each plane can be deployed and tested independently.
 
-Attackers suppress or alter evidence to evade detection.
+- **Extensibility**
+  - Additional satellite types or missions can be added by instantiating more satellite-sim nodes.
+  - New attack scenarios can be added to threat-library/ without changing core code.
 
-T4 – Multi-segment campaigns
+- **Performance**
+  - Initial implementation targets a lab environment; real-time constraints are not strict.
+  - Design should allow later simulation of latency / bandwidth constraints.
 
-Ground IT compromise pivoting into satellite operations.
+- **Security**
+  - Even in a lab, secrets handling, least privilege, and hardening should be applied where practical.
 
-6.4 Mitigations mapping (high level)
+- **Portability**
+  - Pure containerised deployment for local development; small K3s cluster for multi-node testing.
 
-T1 – Use signed artefacts, attestation, SBOM and policy checks; align with SPD-5 and ENISA supply-chain guidance. 
-stli.iii.org.tw
-+2
-ResearchGate
-+2
+## 8. Future extensions
 
-T2 – Enforce identity-aware TT&C gateway, least-privilege policies, command signing, anomaly detection; aligned with Zero-Trust for space communications. 
-cyber
-+2
-aerospace.org
-+2
-
-T3 – Centralised, append-only logging, integrity checks on logs, and independent monitoring in Space-SOC.
-
-T4 – Holistic visibility where CI, gateway and satellite telemetry all feed correlation and scenario detection based on SPARTA / SPACE-SHIELD style attack flows. 
-Industrial Cyber
-+3
-aerospace.org
-+3
-Space & Cybersecurity Info
-+3
-
-A more detailed threat model and mapping to specific SPARTA / SPACE-SHIELD techniques can be captured in docs/THREAT_MODEL_SPARTA_ENISA.md.
-
-7. Non-functional considerations
-
-Modularity – each plane can be deployed and tested independently.
-
-Extensibility
-
-Additional satellite types or missions can be added by instantiating more satellite-sim nodes.
-
-New attack scenarios can be added to threat-library/ without changing core code.
-
-Performance
-
-Initial implementation targets a lab environment; real-time constraints are not strict.
-
-Design should allow later simulation of latency / bandwidth constraints.
-
-Security
-
-Even in a lab, secrets handling, least privilege, and hardening should be applied where practical.
-
-Portability
-
-Pure containerised deployment for local development; small K3s cluster for multi-node testing.
-
-8. Future extensions
-
-Integrate with actual cyber ranges (e.g. Airbus-style CyberRange concepts) for training. 
-Airbus
-
-Implement more advanced analytics (ML-based anomaly detection on telemetry and commands).
-
-Introduce more detailed RF / orbital simulation for realistic timing and topology.
-
-Expose external APIs so that third-party tools can plug into the Space-SOC.
+- Integrate with actual cyber ranges (e.g. Airbus-style CyberRange concepts) for training.
+- Implement more advanced analytics (ML-based anomaly detection on telemetry and commands).
+- Introduce more detailed RF / orbital simulation for realistic timing and topology.
+- Expose external APIs so that third-party tools can plug into the Space-SOC.

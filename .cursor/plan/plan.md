@@ -1,7 +1,4 @@
 
----
-
-```markdown
 <!-- plan.md -->
 
 # Space Cyber Resilience Platform – Development Plan
