@@ -180,5 +180,29 @@ func (e *Engine) loadDefaultRules() {
 			}
 		},
 	})
+
+	// [SOCIAL IMPACT] Critical Infrastructure Protection
+	// Rule 5: Critical Disaster Response Mode
+	e.rules = append(e.rules, Rule{
+		ID:          "critical-disaster-response",
+		Description: "During disaster response, only ADMIN can execute commands to prevent interference",
+		Condition: func(ctx CommandContext) bool {
+			return ctx.MissionPhase == "CRITICAL_DISASTER_RESPONSE"
+		},
+		Action: func(ctx CommandContext) PolicyDecision {
+			if ctx.OperatorRole != "admin" {
+				return PolicyDecision{
+					Allowed:  false,
+					Reason:   "System in CRITICAL DISASTER RESPONSE mode. Only ADMIN can execute commands.",
+					Severity: "critical",
+				}
+			}
+			return PolicyDecision{
+				Allowed:  true,
+				Reason:   "ADMIN authorized during CRITICAL DISASTER RESPONSE",
+				Severity: "high",
+			}
+		},
+	})
 }
 

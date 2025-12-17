@@ -207,6 +207,20 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
+	// [ECONOMIC MODEL] - Enterprise Feature
+	// This is a placeholder for a licensing middleware.
+	// In a real application, `middleware.CheckLicenseMiddleware()` would verify
+	// if the user/organization has the necessary license for enterprise features.
+	// For this example, we'll just add a dummy endpoint.
+	r.GET("/api/v1/enterprise/threat-replay", func(c *gin.Context) {
+		// In a real scenario, CheckLicenseMiddleware would handle access.
+		// For this example, we'll just grant access.
+		c.JSON(http.StatusOK, gin.H{
+			"status": "access_granted",
+			"msg":    "Welcome to the Enterprise Threat Replay Engine",
+		})
+	})
+
 	// 事件接收端點
 	r.POST("/api/v1/events", func(c *gin.Context) {
 		var req IngestRequest
