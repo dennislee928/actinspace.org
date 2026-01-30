@@ -1,0 +1,3 @@
+DROP TABLE IF EXISTS asset;
+DROP TABLE IF EXISTS source_job;
+DROP TABLE IF EXISTS dataset_ref;

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -15,6 +16,12 @@ import (
 	"gorm.io/gorm"
 
 	"actinspace.org/space-soc/backend/internal/integrations"
+	"actinspace.org/space-soc/backend/internal/integrations/s2gm"
+	"actinspace.org/space-soc/backend/internal/dto"
+	"actinspace.org/space-soc/backend/internal/model"
+	"actinspace.org/space-soc/backend/internal/scheduler"
+	"actinspace.org/space-soc/backend/internal/storage"
+	"actinspace.org/space-soc/backend/internal/vo"
 )
 
 // Event 定義 Space-SOC 儲存的事件格式。
@@ -103,8 +110,9 @@ func initDB() {
 		log.Fatalf("無法連接到資料庫: %v", err)
 	}
 
-	// 自動遷移
-	if err := db.AutoMigrate(&Event{}, &Incident{}, &SoftwarePosture{}); err != nil {
+	// 自動遷移（含 CLMS/S2GM 表；正式環境可改用 database/migrations 執行 SQL）
+	if err := db.AutoMigrate(&Event{}, &Incident{}, &SoftwarePosture{},
+		&model.SourceJob{}, &model.Asset{}, &model.DatasetRef{}); err != nil {
 		log.Fatalf("資料庫遷移失敗: %v", err)
 	}
 
@@ -255,6 +263,154 @@ func getResourcesHandler() gin.HandlerFunc {
 	}
 }
 
+// parseOptionalTime 解析 ISO8601 字串為 *time.Time；空字串或 nil 回傳 nil, nil。
+func parseOptionalTime(s *string) (*time.Time, error) {
+	if s == nil || *s == "" {
+		return nil, nil
+	}
+	t, err := time.Parse(time.RFC3339, *s)
+	if err != nil {
+		return nil, err
+	}
+	return &t, nil
+}
+
+// createSourceJobHandler 建立一筆 source_job（status=pending），CLMS 任務由 Scheduler 撿取執行。
+func createSourceJobHandler(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req dto.CreateSourceJobRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		var timeStart, timeEnd *time.Time
+		if req.TimeStart != nil {
+			t, err := parseOptionalTime(req.TimeStart)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid time_start: " + err.Error()})
+				return
+			}
+			timeStart = t
+		}
+		if req.TimeEnd != nil {
+			t, err := parseOptionalTime(req.TimeEnd)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid time_end: " + err.Error()})
+				return
+			}
+			timeEnd = t
+		}
+		job := model.SourceJob{
+			Source:          req.Source,
+			AoiGeom:         req.AoiGeom,
+			TimeStart:       timeStart,
+			TimeEnd:         timeEnd,
+			Status:          "pending",
+			DatasetUID:      req.DatasetUID,
+			DownloadInfoID:  req.DownloadInfoID,
+			OutputFormat:   req.OutputFormat,
+			OutputGCS:       req.OutputGCS,
+		}
+		if err := db.Create(&job).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create job"})
+			return
+		}
+		c.JSON(http.StatusCreated, sourceJobToVO(&job))
+	}
+}
+
+// listSourceJobsHandler 查詢 source_job，支援 query 篩選 source、status。
+func listSourceJobsHandler(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		query := db.Model(&model.SourceJob{})
+		if source := c.Query("source"); source != "" {
+			query = query.Where("source = ?", source)
+		}
+		if status := c.Query("status"); status != "" {
+			query = query.Where("status = ?", status)
+		}
+		var jobs []model.SourceJob
+		if err := query.Order("created_at DESC").Find(&jobs).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list jobs"})
+			return
+		}
+		list := make([]vo.SourceJobVO, len(jobs))
+		for i := range jobs {
+			list[i] = sourceJobToVO(&jobs[i])
+		}
+		c.JSON(http.StatusOK, gin.H{"jobs": list, "count": len(list)})
+	}
+}
+
+// getSourceJobHandler 回傳單一 source_job。
+func getSourceJobHandler(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		idStr := c.Param("id")
+		id, err := strconv.ParseUint(idStr, 10, 32)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+			return
+		}
+		var job model.SourceJob
+		if err := db.First(&job, id).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "job not found"})
+			return
+		}
+		c.JSON(http.StatusOK, sourceJobToVO(&job))
+	}
+}
+
+// listSourceJobAssetsHandler 回傳該 job 的資產列表（VO：filename, storage_url, mime 等）。
+func listSourceJobAssetsHandler(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		idStr := c.Param("id")
+		jobID, err := strconv.ParseUint(idStr, 10, 32)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+			return
+		}
+		var job model.SourceJob
+		if err := db.First(&job, jobID).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "job not found"})
+			return
+		}
+		var assets []model.Asset
+		if err := db.Where("job_id = ?", jobID).Find(&assets).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list assets"})
+			return
+		}
+		list := make([]vo.AssetVO, len(assets))
+		for i := range assets {
+			list[i] = vo.AssetVO{
+				ID:         assets[i].ID,
+				JobID:      assets[i].JobID,
+				Filename:   assets[i].Filename,
+				Mime:       assets[i].Mime,
+				CRS:        assets[i].CRS,
+				Resolution: assets[i].Resolution,
+				StorageURL: assets[i].StorageURL,
+				SizeBytes:  assets[i].SizeBytes,
+				CreatedAt:  assets[i].CreatedAt,
+			}
+		}
+		c.JSON(http.StatusOK, gin.H{"assets": list, "count": len(list)})
+	}
+}
+
+func sourceJobToVO(j *model.SourceJob) vo.SourceJobVO {
+	return vo.SourceJobVO{
+		ID:             j.ID,
+		Source:         j.Source,
+		AoiGeom:        j.AoiGeom,
+		TimeStart:      j.TimeStart,
+		TimeEnd:        j.TimeEnd,
+		Status:         j.Status,
+		ExternalTaskID: j.ExternalTaskID,
+		CreatedAt:      j.CreatedAt,
+		UpdatedAt:      j.UpdatedAt,
+	}
+}
+
 // updateSoftwarePosture 更新組件的軟體姿態。
 func updateSoftwarePosture(component, version, imageDigest string, db *gorm.DB) {
 	var posture SoftwarePosture
@@ -284,6 +440,14 @@ func updateSoftwarePosture(component, version, imageDigest string, db *gorm.DB) 
 func main() {
 	initDB()
 
+	// CLMS Scheduler：週期掃 pending CLMS job 並執行 Fetcher（需 CLMS JWT + Object Storage）
+	auth, _ := integrations.NewCLMSAuthFromEnv()
+	objStore, _ := storage.FromEnv()
+	go scheduler.RunCLMSScheduler(context.Background(), db, auth, objStore)
+
+	// S2GM Watcher：監控 S2GM_WATCH_DIR，完成產品上傳至 Object Storage 並寫入 source_job/asset
+	go s2gm.RunS2GMWatcher(context.Background(), db, objStore, os.Getenv("S2GM_WATCH_DIR"))
+
 	r := gin.Default()
 
 	// CORS 設定（允許 frontend 存取）
@@ -311,6 +475,12 @@ func main() {
 	// CLMS：代理 land.copernicus.eu 資料集列表與下載請求（下載需 CLMS_BEARER_TOKEN）
 	r.GET("/api/v1/clms/datasets", integrations.CLMSDatasets())
 	r.POST("/api/v1/clms/datarequest", integrations.CLMSDataRequest())
+
+	// Source jobs：建立/查詢 CLMS/S2GM 任務；GET :id/assets 回傳該 job 的資產列表
+	r.POST("/api/v1/jobs/source", createSourceJobHandler(db))
+	r.GET("/api/v1/jobs/source", listSourceJobsHandler(db))
+	r.GET("/api/v1/jobs/source/:id", getSourceJobHandler(db))
+	r.GET("/api/v1/jobs/source/:id/assets", listSourceJobAssetsHandler(db))
 
 	// EPO OPS：代理專利搜尋（需 EPO_OPS_CONSUMER_KEY、EPO_OPS_CONSUMER_SECRET）
 	r.GET("/api/v1/patents/search", integrations.PatentsSearch())
