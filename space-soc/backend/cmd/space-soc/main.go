@@ -98,11 +98,13 @@ func initDB() {
 
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
+		dbURL = os.Getenv("SUPABASE_DATABASE_URL")
+	}
+	if dbURL != "" {
+		dialector = postgres.Open(dbURL)
+	} else {
 		// 預設使用 SQLite（開發環境）
 		dialector = sqlite.Open("space-soc.db")
-	} else {
-		// 使用 PostgreSQL（生產環境）
-		dialector = postgres.Open(dbURL)
 	}
 
 	db, err = gorm.Open(dialector, &gorm.Config{})

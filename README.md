@@ -163,7 +163,15 @@ These are documented in more detail in `docs/USE_CASES.md` (to be implemented).
 - SBOM generation tools (CycloneDX / Syft or equivalent)
 - Simple in-repo signing / verification (e.g. based on Go crypto; pluggable to cosign / in-toto patterns later)
 
-## 6. Quickstart
+## 6. Environment variables and EO (ACRI-ST / S2GM / CLMS)
+
+A full list of environment variables is in [`.env.example`](.env.example). Copy it to `.env` and set values as needed.
+
+- **Database**: `DATABASE_URL` — leave empty to use `SUPABASE_DATABASE_URL` (Supabase) or SQLite (local dev).
+- **Object storage (non-relational)**: Cloudflare R2 or any S3-compatible store; use the `S3_*` variables. R2 uses the S3 API endpoint from the R2 dashboard.
+- **Space-SOC Backend** holds all ACRI-ST / S2GM / CLMS schema and data (`source_job`, `asset`, `dataset_ref`). Other components (ttc-gateway, ota-controller, ground-station-sim, satellite-sim, threat-library) **use** EO via the Space-SOC API — set `SPACE_SOC_URL` where the component calls Space-SOC (e.g. ttc-gateway, ota-controller). Relevant APIs: `GET /api/v1/resources`, `GET /api/v1/copernicus/wmts-config`, `GET/POST /api/v1/jobs/source`, `GET /api/v1/jobs/source/:id/assets`.
+
+## 7. Quickstart
 
 **Prerequisites**
 
@@ -234,7 +242,7 @@ docker compose -f infra/docker-compose.yaml logs -f
 - Check Incidents tab for security events
 - View Software Posture for component versions and vulnerabilities
 
-## 7. Implementation Status
+## 8. Implementation Status
 
 The development roadmap and milestones are tracked in [`plan.md`](.cursor/plan/plan.md).
 
@@ -275,7 +283,7 @@ The development roadmap and milestones are tracked in [`plan.md`](.cursor/plan/p
 - More realistic simulation (latency, packet loss)
 - External SIEM/SOAR integration
 
-## 8. Disclaimer
+## 9. Disclaimer
 
 This repository is for research and educational purposes only.
 
@@ -283,7 +291,7 @@ All satellites, ground systems and attacks are simulated.
 
 The project does not represent Airbus, CNES, ENISA, NIST or any space operator.
 
-## 9. Acknowledgements & references (non-exhaustive)
+## 10. Acknowledgements & references (non-exhaustive)
 
 - **ENISA** – Space Threat Landscape reports
 - **U.S. Space Policy Directive-5** – Cybersecurity Principles for Space Systems
