@@ -202,9 +202,7 @@ curl -X POST http://localhost:8081/command \
 
 請參考 `docs/PHASE3_OTA_GUIDE.md`
 
-### 查看 Space-SOC
-
-1. 開啟瀏覽器訪問 http://localhost:3001
+### 查看 Space-SOC1. 開啟瀏覽器訪問 http://localhost:3001
 2. 查看事件列表
 3. 切換到 Incidents 標籤
 4. 訪問軟體姿態頁面：http://localhost:3001/posture

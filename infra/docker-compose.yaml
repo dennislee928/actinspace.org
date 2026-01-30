@@ -9,7 +9,25 @@ services:
       - "8083:8080"
     environment:
       - PORT=8080
-      - DATABASE_URL=  # 使用 SQLite（預設）
+      # 留空則使用 SUPABASE_DATABASE_URL（Supabase）或 SQLite（開發）
+      - DATABASE_URL=
+      # - SUPABASE_DATABASE_URL=postgresql://...
+      # ACRI-ST / CLMS / S2GM（選用）
+      # - ACRI_ST_FOLDER_URL=
+      # - CLMS_CLIENT_ID=
+      # - CLMS_PRIVATE_KEY=
+      # - CLMS_TOKEN_URI=
+      # - CLMS_USER_ID=
+      # - CLMS_SCHEDULER_INTERVAL=2m
+      # - S2GM_WATCH_DIR=
+      # - S2GM_WATCH_INTERVAL=1m
+      # Object Storage：Cloudflare R2 或 S3-compatible（R2 使用 S3 API 端點）
+      # - S3_ENDPOINT=
+      # - S3_ACCESS_KEY_ID=
+      # - S3_SECRET_ACCESS_KEY=
+      # - S3_BUCKET=
+      # - S3_USE_SSL=true
+      # - S3_PUBLIC_BASE_URL=
     volumes:
       - space-soc-data:/root
     healthcheck:

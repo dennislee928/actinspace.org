@@ -84,8 +84,6 @@ severity: high
 
 ## 擴展場景
 
-要添加新場景：
-
-1. 在 `scenarios/` 目錄創建新的 YAML 檔案
+要添加新場景：1. 在 `scenarios/` 目錄創建新的 YAML 檔案
 2. 在 `scripts/replay-scenario.go` 中添加對應的重演邏輯（如果需要自動化）
 3. 更新本文檔的場景列表

@@ -57,7 +57,7 @@ GET /api/v1/releases?component=satellite-sim&status=approved
 - `PORT`: 服務端口（預設: 8084）
 - `DATABASE_PATH`: SQLite 資料庫路徑（預設: ota-controller.db）
 - `MISSION_PHASE`: 任務階段（normal, critical, safe_mode）
-- `SPACE_SOC_URL`: Space-SOC backend URL（用於事件記錄）
+- `SPACE_SOC_URL`: Space-SOC backend URL（用於事件記錄；亦可透過 Space-SOC API 使用 ACRI-ST / S2GM / CLMS 資源與任務）
 
 ## 使用範例
 

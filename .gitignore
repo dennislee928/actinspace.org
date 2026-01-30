@@ -35,3 +35,5 @@ Thumbs.db
 .cursor/rules/snyk_rules.mdc
 /.ignore-script
 gitlab-push.sh
+question.txt
+/.cursor/plans
