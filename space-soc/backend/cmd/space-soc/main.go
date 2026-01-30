@@ -13,6 +13,8 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+
+	"actinspace.org/space-soc/backend/internal/integrations"
 )
 
 // Event 定義 Space-SOC 儲存的事件格式。
@@ -160,6 +162,99 @@ func createOrUpdateIncident(req IngestRequest, db *gorm.DB) *Incident {
 	}
 }
 
+// ResourceItem 單一資源連結（專利／EO／ACRI-ST）。
+type ResourceItem struct {
+	Title       string `json:"title"`
+	URL         string `json:"url"`
+	Description string `json:"description,omitempty"`
+	Note        string `json:"note,omitempty"`
+}
+
+// ResourceCategory 資源分類（專利資料庫、地球觀測、ACRI-ST）。
+type ResourceCategory struct {
+	ID    string         `json:"id"`
+	Label string         `json:"label"`
+	Items []ResourceItem `json:"items"`
+}
+
+// getResourcesHandler 回傳 GET /api/v1/resources 的 handler；ACRI-ST 連結由 ACRI_ST_FOLDER_URL 填入。
+func getResourcesHandler() gin.HandlerFunc {
+	acriURL := os.Getenv("ACRI_ST_FOLDER_URL")
+	if acriURL == "" {
+		acriURL = "#"
+	}
+	return func(c *gin.Context) {
+		categories := []ResourceCategory{
+			{
+				ID:    "patents",
+				Label: "專利資料庫",
+				Items: []ResourceItem{
+					{
+						Title:       "CNES",
+						URL:         "https://www.connectbycnes.fr/ressources-valorisation",
+						Description: "Connect by CNES 專利與資源",
+					},
+					{
+						Title:       "ESA",
+						URL:         "https://commercialisation.esa.int/patents/",
+						Description: "ESA 專利資料庫",
+					},
+					{
+						Title:       "Airbus",
+						URL:         "https://worldwide.espacenet.com/advancedSearch?locale=en_EP",
+						Description: "Espacenet 進階搜尋",
+						Note:        "Applicant 選「Airbus Defence」以檢視清單",
+					},
+				},
+			},
+			{
+				ID:    "earth_observation",
+				Label: "地球觀測／Copernicus",
+				Items: []ResourceItem{
+					{
+						Title:       "S2GM (Sentinel-2 Global Mosaic)",
+						URL:         "https://s2gm.land.copernicus.eu/",
+						Description: "全球 mosaic／時間序列；不需 VPN（2026.01.27 起）",
+					},
+					{
+						Title:       "CLMS",
+						URL:         "https://land.copernicus.eu/en",
+						Description: "Copernicus Land Monitoring Service；陸域產品（土地覆蓋、地表形變、植被等）",
+					},
+					{
+						Title:       "Copernicus Data Space Ecosystem",
+						URL:         "https://dataspace.copernicus.eu/",
+						Description: "登入後可使用 OGC WMTS/WMS、STAC 等",
+					},
+				},
+			},
+			{
+				ID:    "acri_st",
+				Label: "ACRI-ST／挑戰題",
+				Items: []ResourceItem{
+					{
+						Title:       "ACRI-ST #1",
+						URL:         acriURL,
+						Description: "挑戰題 ACRI ST #1、雲端資料夾、中文翻譯與專利 PDF 連結",
+						Note:        "主辦方註明需 VPN 連法國，依說明使用",
+					},
+					{
+						Title:       "Copernicus Marine",
+						URL:         "https://marine.copernicus.eu/",
+						Description: "海洋數據；註冊後可搜尋關鍵字 OCEANCOLOUR 取得相關產品",
+					},
+					{
+						Title:       "OCDB",
+						URL:         "https://ocdb.eumetsat.int/",
+						Description: "Ocean Colour 資料；可透過 ocdb-cli 或 Python API 存取，詳見官方文件",
+					},
+				},
+			},
+		}
+		c.JSON(http.StatusOK, gin.H{"categories": categories})
+	}
+}
+
 // updateSoftwarePosture 更新組件的軟體姿態。
 func updateSoftwarePosture(component, version, imageDigest string, db *gorm.DB) {
 	var posture SoftwarePosture
@@ -206,6 +301,16 @@ func main() {
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
+
+	// Resources API：專利／地球觀測／ACRI-ST 連結與說明（前端參考資源頁資料來源）
+	r.GET("/api/v1/resources", getResourcesHandler())
+
+	// Copernicus WMTS/WMS 設定（含 S2GM 底圖）；前端地圖可選顯示 S2GM
+	r.GET("/api/v1/copernicus/wmts-config", integrations.CopernicusWMTSConfig())
+
+	// CLMS：代理 land.copernicus.eu 資料集列表與下載請求（下載需 CLMS_BEARER_TOKEN）
+	r.GET("/api/v1/clms/datasets", integrations.CLMSDatasets())
+	r.POST("/api/v1/clms/datarequest", integrations.CLMSDataRequest())
 
 	// [ECONOMIC MODEL] - Enterprise Feature
 	// This is a placeholder for a licensing middleware.
