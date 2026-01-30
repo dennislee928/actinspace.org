@@ -91,3 +91,37 @@ func (p *PatentsClient) SearchFromParams(q, applicant string) (body []byte, cont
 	cql := strings.Join(parts, " AND ")
 	return p.Search(cql)
 }
+
+// PatentsSearch 為 GET /api/v1/patents/search 的 handler；查詢參數 q、applicant 轉成 CQL 代理 EPO OPS。
+// 未設定 EPO_OPS_CONSUMER_KEY / EPO_OPS_CONSUMER_SECRET 時回傳 503。
+func PatentsSearch() gin.HandlerFunc {
+	pc := NewPatentsClient()
+	return func(c *gin.Context) {
+		q := strings.TrimSpace(c.Query("q"))
+		applicant := strings.TrimSpace(c.Query("applicant"))
+		if q == "" && applicant == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "至少需提供查詢參數 q 或 applicant"})
+			return
+		}
+		if pc == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{
+				"error":   "EPO OPS not configured",
+				"message": "請設定環境變數 EPO_OPS_CONSUMER_KEY 與 EPO_OPS_CONSUMER_SECRET（於 developers.epo.org 註冊取得）",
+			})
+			return
+		}
+		body, contentType, err := pc.SearchFromParams(q, applicant)
+		if err != nil {
+			if strings.Contains(err.Error(), "EPO OPS returned") {
+				c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		if contentType == "" {
+			contentType = "application/json"
+		}
+		c.Data(http.StatusOK, contentType, body)
+	}
+}

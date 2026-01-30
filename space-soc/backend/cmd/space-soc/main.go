@@ -312,6 +312,9 @@ func main() {
 	r.GET("/api/v1/clms/datasets", integrations.CLMSDatasets())
 	r.POST("/api/v1/clms/datarequest", integrations.CLMSDataRequest())
 
+	// EPO OPS：代理專利搜尋（需 EPO_OPS_CONSUMER_KEY、EPO_OPS_CONSUMER_SECRET）
+	r.GET("/api/v1/patents/search", integrations.PatentsSearch())
+
 	// [ECONOMIC MODEL] - Enterprise Feature
 	// This is a placeholder for a licensing middleware.
 	// In a real application, `middleware.CheckLicenseMiddleware()` would verify
